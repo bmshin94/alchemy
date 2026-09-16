@@ -1,4 +1,7 @@
-import { DEFAULT_COMPATIBILITY_DATE } from "@alchemy.run/cloudflare-runtime/core/internal/constants";
+import {
+  DEFAULT_COMPATIBILITY_DATE,
+  withDefaultFlags,
+} from "@alchemy.run/cloudflare-runtime/core/internal/constants";
 import { isPythonMain } from "./Sources/Python.ts";
 import type { WorkerProps } from "./Worker.ts";
 
@@ -82,37 +85,39 @@ export const getCompatibility = (props: WorkerProps) => {
   const date = props.compatibility?.date ?? DEFAULT_COMPATIBILITY_DATE;
   return {
     date,
-    flags: [
-      ...userFlags,
-      // Required while Python Workers are in open beta — the upload API
-      // rejects Python modules without it.
-      ...(python ? ["python_workers"] : []),
-      // Every JS Worker gets Node.js compatibility by default — Effect-native
-      // Workers need it for the bundled Effect runtime, and external Workers
-      // (plain `export default { fetch }` entrypoints, vite builds) routinely
-      // import `node:*` built-ins. Without it the bundle uploads fine but
-      // Cloudflare rejects the script with `No such module "node:crypto"`
-      // (#796). For dates before Cloudflare's default-on cutoff we still emit
-      // the flag; newer dates supply the behavior themselves. Python Workers
-      // don't go through the JS bundler, so they get no default. An explicit
-      // `no_nodejs_compat` opts out — appending
-      // `nodejs_compat` alongside it would send Cloudflare a contradictory
-      // flag pair.
-      ...(python ||
-      userFlags.includes("no_nodejs_compat") ||
-      date >= NODEJS_COMPAT_DEFAULT_ON
-        ? []
-        : props.isExternal
-          ? // ISO dates compare lexically.
-            date >= NODEJS_COMPAT_V2_DATE
-            ? ["nodejs_compat"]
-            : []
-          : ["nodejs_compat"]),
-      ...(props.isExternal
-        ? []
-        : date < CROSS_REQUEST_PROMISE_RESOLUTION_DEFAULT_ON
-          ? [CROSS_REQUEST_PROMISE_RESOLUTION]
-          : []),
-    ].filter((value, index, self) => self.indexOf(value) === index),
+    flags: withDefaultFlags(
+      [
+        ...userFlags,
+        // Required while Python Workers are in open beta — the upload API
+        // rejects Python modules without it.
+        ...(python ? ["python_workers"] : []),
+        // Every JS Worker gets Node.js compatibility by default — Effect-native
+        // Workers need it for the bundled Effect runtime, and external Workers
+        // (plain `export default { fetch }` entrypoints, vite builds) routinely
+        // import `node:*` built-ins. Without it the bundle uploads fine but
+        // Cloudflare rejects the script with `No such module "node:crypto"`
+        // (#796). For dates before Cloudflare's default-on cutoff we still emit
+        // the flag; newer dates supply the behavior themselves. Python Workers
+        // don't go through the JS bundler, so they get no default. An explicit
+        // `no_nodejs_compat` opts out — appending
+        // `nodejs_compat` alongside it would send Cloudflare a contradictory
+        // flag pair.
+        ...(python ||
+        userFlags.includes("no_nodejs_compat") ||
+        date >= NODEJS_COMPAT_DEFAULT_ON
+          ? []
+          : props.isExternal
+            ? // ISO dates compare lexically.
+              date >= NODEJS_COMPAT_V2_DATE
+              ? ["nodejs_compat"]
+              : []
+            : ["nodejs_compat"]),
+        ...(props.isExternal
+          ? []
+          : date < CROSS_REQUEST_PROMISE_RESOLUTION_DEFAULT_ON
+            ? [CROSS_REQUEST_PROMISE_RESOLUTION]
+            : []),
+      ].filter((value, index, self) => self.indexOf(value) === index),
+    ),
   };
 };
